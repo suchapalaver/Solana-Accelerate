@@ -1,0 +1,13 @@
+[package]
+name = "voting-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anchor-client = "0.31"
+anchor-lang = "0.31"
+anyhow = "1.0.98"
+sha2 = "0.10.9"
+solana-client = "2.2"
+solana-sdk = "2.2"
+# tokio = { version = "1", features = ["full"] }
