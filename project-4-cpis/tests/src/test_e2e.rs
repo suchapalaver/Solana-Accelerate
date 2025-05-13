@@ -7,6 +7,8 @@ use anchor_client::{
     Client, Cluster,
 };
 use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::Signature};
+use spl_associated_token_account::get_associated_token_address;
+use spl_associated_token_account::instruction::create_associated_token_account;
 use std::str::FromStr;
 use std::{rc::Rc, thread, time::Duration};
 
@@ -27,9 +29,7 @@ fn test_end_to_end() {
 
     // Set up the Solana client
     let payer = Rc::new(mint_authority);
-    // Make sure to clone token_owner when wrapping in Rc to avoid ownership issues
     let token_owner_rc = Rc::new(token_owner);
-    let token_recipient_rc = Rc::new(token_recipient);
 
     let url = "http://127.0.0.1:8899".to_string();
     let cluster = Cluster::Custom(url, "ws://127.0.0.1:8900".to_string());
@@ -62,6 +62,8 @@ fn test_end_to_end() {
     // Wait after airdrops to ensure they're fully processed
     thread::sleep(Duration::from_secs(2));
 
+    let system_program = Pubkey::from_str("11111111111111111111111111111111").unwrap();
+
     // STEP 1: Initialize the token project
     println!("\n1. Initializing token project...");
     let init_tx = program
@@ -70,7 +72,7 @@ fn test_end_to_end() {
             token_project: token_project_pda,
             payer: mint_authority_pubkey,
             mint_authority: mint_authority_pubkey,
-            system_program: solana_sdk::system_program::id(),
+            system_program,
         })
         .signer(&payer)
         .send()
@@ -92,37 +94,39 @@ fn test_end_to_end() {
             mint_authority: mint_authority_pubkey,
             rent: solana_sdk::sysvar::rent::id(),
             token_program: spl_token::id(),
-            system_program: solana_sdk::system_program::id(),
+            system_program,
         })
         .args(project_4_cpis::instruction::CreateMint {
-            decimals: 9, // Using 9 decimals, standard for Solana tokens
+            _decimals: 9, // Using 9 decimals, standard for Solana tokens(?)
         })
         .signer(&payer)
-        .signer(&Rc::new(mint_keypair))
+        .signer(&mint_keypair)
         .send()
         .expect("Failed to create mint");
 
     println!("Create mint transaction signature: {}", create_mint_tx);
     confirm_transaction(&program, &create_mint_tx);
 
-    // STEP 3: Create token account for the token owner
+    // STEP 3: Create token account for the token owner using Associated Token Account
     println!("\n3. Creating token account for owner...");
-    let owner_token_account_keypair = Keypair::new();
-    let owner_token_account_pubkey = owner_token_account_keypair.pubkey();
+
+    // Derive the Associated Token Account address for the owner
+    let owner_token_account_pubkey =
+        get_associated_token_address(&token_owner_pubkey, &mint_pubkey);
     println!("Owner token account pubkey: {}", owner_token_account_pubkey);
+
+    // Create the Associated Token Account
+    let create_ata_ix = create_associated_token_account(
+        &mint_authority_pubkey, // Payer
+        &token_owner_pubkey,    // Wallet address
+        &mint_pubkey,           // Mint
+        &spl_token::id(),       // Token program ID
+    );
 
     let create_token_account_tx = program
         .request()
-        .accounts(project_4_cpis::accounts::CreateTokenAccount {
-            token_account: owner_token_account_pubkey,
-            mint: mint_pubkey,
-            owner: token_owner_pubkey,
-            rent: solana_sdk::sysvar::rent::id(),
-            token_program: spl_token::id(),
-            system_program: solana_sdk::system_program::id(),
-        })
-        .signer(&token_owner_rc) // Use the Rc version
-        .signer(&Rc::new(owner_token_account_keypair))
+        .instruction(create_ata_ix)
+        .signer(&payer)
         .send()
         .expect("Failed to create token account");
 
@@ -132,27 +136,29 @@ fn test_end_to_end() {
     );
     confirm_transaction(&program, &create_token_account_tx);
 
-    // STEP 4: Create token account for the recipient
+    // STEP 4: Create token account for the recipient using Associated Token Account
     println!("\n4. Creating token account for recipient...");
-    let recipient_token_account_keypair = Keypair::new();
-    let recipient_token_account_pubkey = recipient_token_account_keypair.pubkey();
+
+    // Derive the Associated Token Account address for the recipient
+    let recipient_token_account_pubkey =
+        get_associated_token_address(&token_recipient_pubkey, &mint_pubkey);
     println!(
         "Recipient token account pubkey: {}",
         recipient_token_account_pubkey
     );
 
+    // Create the Associated Token Account
+    let create_recipient_ata_ix = create_associated_token_account(
+        &mint_authority_pubkey,  // Payer
+        &token_recipient_pubkey, // Wallet address
+        &mint_pubkey,            // Mint
+        &spl_token::id(),        // Token program ID
+    );
+
     let create_recipient_account_tx = program
         .request()
-        .accounts(project_4_cpis::accounts::CreateTokenAccount {
-            token_account: recipient_token_account_pubkey,
-            mint: mint_pubkey,
-            owner: token_recipient_pubkey,
-            rent: solana_sdk::sysvar::rent::id(),
-            token_program: spl_token::id(),
-            system_program: solana_sdk::system_program::id(),
-        })
-        .signer(&token_recipient_rc) // Use the Rc version
-        .signer(&Rc::new(recipient_token_account_keypair))
+        .instruction(create_recipient_ata_ix)
+        .signer(&payer)
         .send()
         .expect("Failed to create recipient token account");
 
@@ -196,7 +202,7 @@ fn test_end_to_end() {
             from: owner_token_account_pubkey,
             to: recipient_token_account_pubkey,
             token_program: spl_token::id(),
-            system_program: solana_sdk::system_program::id(),
+            system_program,
         })
         .args(project_4_cpis::instruction::TransferTokens {
             amount: transfer_amount,
