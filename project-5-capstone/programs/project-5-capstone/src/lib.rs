@@ -21,6 +21,19 @@ pub mod project_5_capstone {
         }
         Ok(())
     }
+
+    pub fn initialize_config_and_update_store(
+        ctx: Context<InitializeConfigAndUpdateStore>,
+        new_store_name: String,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+        config.owner = ctx.accounts.authority.key();
+
+        let store = &mut ctx.accounts.store;
+        store.name = new_store_name;
+
+        Ok(())
+    }
 }
 
 #[account]
@@ -32,6 +45,11 @@ pub struct Store {
 #[account]
 pub struct TokenProjectAccount {
     pub mint_authority: Pubkey,
+}
+
+#[account]
+pub struct Config {
+    pub owner: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -78,6 +96,26 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
     pub mint_authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeConfigAndUpdateStore<'info> {
+    #[account(
+        seeds = [b"store", authority.key().as_ref()],
+        bump
+    )]
+    pub store: Account<'info, Store>,
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + 32,
+        seeds = [b"config"],
+        bump
+    )]
+    pub config: Account<'info, Config>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
