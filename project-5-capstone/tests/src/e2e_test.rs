@@ -27,7 +27,7 @@ fn test_register_store_and_initialize_config() {
     );
 
     // Get the program from the client
-    let program_id = Pubkey::from_str("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS").unwrap();
+    let program_id = Pubkey::from_str("Hirm3Q5vTf2bTc83NMEfe8hjpdKrw6tdwK7DrjHnGR9Q").unwrap();
     let program = client.program(program_id).unwrap();
 
     // Derive the PDA for the store
