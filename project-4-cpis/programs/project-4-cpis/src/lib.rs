@@ -9,9 +9,7 @@ declare_id!("Eau8idrUiVQD3r9eEcqhxdhCZVdXAcxQQ4YWNFFnC42P");
 
 #[program]
 pub mod project_4_cpis {
-    use anchor_spl::token_interface::{
-        self, InitializeAccount, InitializeMint, MintTo, TransferChecked,
-    };
+    use anchor_spl::token_interface::{self, MintTo, TransferChecked};
 
     use super::*;
 
@@ -21,32 +19,13 @@ pub mod project_4_cpis {
         Ok(())
     }
 
-    pub fn create_mint(ctx: Context<CreateMint>, decimals: u8) -> Result<()> {
-        let cpi_accounts = InitializeMint {
-            mint: ctx.accounts.mint.to_account_info(),
-            rent: ctx.accounts.rent.to_account_info(),
-        };
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        token_interface::initialize_mint(
-            cpi_ctx,
-            decimals,
-            &ctx.accounts.mint_authority.key(),
-            Some(&ctx.accounts.mint_authority.key()),
-        )?;
+    pub fn create_mint(_ctx: Context<CreateMint>, _decimals: u8) -> Result<()> {
+        // Anchor already initialized it with the mint:: constraint
         Ok(())
     }
 
-    pub fn create_token_account(ctx: Context<CreateTokenAccount>) -> Result<()> {
-        let cpi_accounts = InitializeAccount {
-            account: ctx.accounts.token_account.to_account_info(),
-            mint: ctx.accounts.mint.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
-            rent: ctx.accounts.rent.to_account_info(),
-        };
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        token_interface::initialize_account(cpi_ctx)?;
+    pub fn create_token_account(_ctx: Context<CreateTokenAccount>) -> Result<()> {
+        // Anchor already initialized it with the token:: constraint
         Ok(())
     }
 
@@ -96,7 +75,12 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct CreateMint<'info> {
-    #[account(init, payer = mint_authority, space = 82)]
+    #[account(
+        init,
+        payer = mint_authority,
+        mint::decimals = 9,
+        mint::authority = mint_authority,
+    )]
     pub mint: Account<'info, Mint>,
     #[account(mut)]
     pub mint_authority: Signer<'info>,
@@ -107,7 +91,12 @@ pub struct CreateMint<'info> {
 
 #[derive(Accounts)]
 pub struct CreateTokenAccount<'info> {
-    #[account(init, payer = owner, space = 165)]
+    #[account(
+        init,
+        payer = owner,
+        token::mint = mint,
+        token::authority = owner,
+    )]
     pub token_account: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
     #[account(mut)]
