@@ -102,6 +102,7 @@ pub struct Initialize<'info> {
 #[derive(Accounts)]
 pub struct InitializeConfigAndUpdateStore<'info> {
     #[account(
+        mut,
         seeds = [b"store", authority.key().as_ref()],
         bump
     )]
